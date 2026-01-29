@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import {
   Bar,
   BarChart,
@@ -35,6 +35,7 @@ interface MonthlyData {
 
 export function WorkloadAnalytics() {
   const { trainings } = useTraining()
+  const [taxRate, setTaxRate] = useState(25)
 
   const monthlyData = useMemo(() => {
     const data: MonthlyData[] = []
@@ -118,6 +119,29 @@ export function WorkloadAnalytics() {
     return { totalHours, totalRevenue, totalSessions, avgHoursPerMonth, peakMonth, lowMonth }
   }, [monthlyData])
 
+  const irsData = useMemo(() => {
+    // Payment 1: Jan (0) + Feb (1) -> Paid in March
+    const period1Revenue = monthlyData
+      .filter(m => m.monthIndex === 0 || m.monthIndex === 1)
+      .reduce((acc, m) => acc + m.revenue, 0)
+
+    // Payment 2: Mar (2) + Apr (3) + May (4) -> Paid in June
+    const period2Revenue = monthlyData
+      .filter(m => m.monthIndex >= 2 && m.monthIndex <= 4)
+      .reduce((acc, m) => acc + m.revenue, 0)
+
+    return {
+      period1: {
+        revenue: period1Revenue,
+        tax: period1Revenue * (taxRate / 100)
+      },
+      period2: {
+        revenue: period2Revenue,
+        tax: period2Revenue * (taxRate / 100)
+      }
+    }
+  }, [monthlyData, taxRate])
+
   // Define colors for charts (computed in JS, not CSS variables)
   const chartColors = {
     hours: "#22c55e",
@@ -129,6 +153,56 @@ export function WorkloadAnalytics() {
     <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* IRS Simulation Card */}
+        <Card className="bg-card border-border md:col-span-2 lg:col-span-4 bg-gradient-to-r from-primary/5 to-transparent">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-foreground flex items-center gap-2">
+                <Euro className="w-5 h-5 text-primary" />
+                Simulação IRS
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">Taxa de Retenção:</span>
+                <input
+                  type="number"
+                  value={taxRate}
+                  onChange={(e) => setTaxRate(Number(e.target.value))}
+                  className="w-16 h-8 rounded border border-input bg-background px-2 text-sm text-right"
+                />
+                <span className="text-sm">%</span>
+              </div>
+            </div>
+            <CardDescription>Estimativa de valores a pagar em Março (Jan+Fev) e Junho (Mar+Abr+Mai)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-2">
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Pagamento em Março</span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-bold text-foreground">{irsData.period1.tax.toLocaleString('pt-PT', { maximumFractionDigits: 0 })}€</span>
+                  <span className="text-sm text-muted-foreground">de {irsData.period1.revenue.toLocaleString('pt-PT', { maximumFractionDigits: 0 })}€ rendimento</span>
+                </div>
+                <div className="h-2 w-full bg-secondary rounded-full mt-2 overflow-hidden">
+                  <div className="h-full bg-primary/70" style={{ width: '100%' }}></div>
+                </div>
+                <span className="text-xs text-muted-foreground mt-1">Corresponde a Janeiro e Fevereiro</span>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Pagamento em Junho</span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-bold text-foreground">{irsData.period2.tax.toLocaleString('pt-PT', { maximumFractionDigits: 0 })}€</span>
+                  <span className="text-sm text-muted-foreground">de {irsData.period2.revenue.toLocaleString('pt-PT', { maximumFractionDigits: 0 })}€ rendimento</span>
+                </div>
+                <div className="h-2 w-full bg-secondary rounded-full mt-2 overflow-hidden">
+                  <div className="h-full bg-primary/70" style={{ width: '100%' }}></div>
+                </div>
+                <span className="text-xs text-muted-foreground mt-1">Corresponde a Março, Abril e Maio</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card className="bg-card border-border">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
