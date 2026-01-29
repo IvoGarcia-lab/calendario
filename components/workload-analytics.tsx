@@ -34,14 +34,25 @@ interface MonthlyData {
 }
 
 export function WorkloadAnalytics() {
-  const { trainings } = useTraining()
-  const [taxRate, setTaxRate] = useState(25)
+  const { trainings, periodRange } = useTraining()
+  const [taxRate, setTaxRate] = useState(23)
 
   const monthlyData = useMemo(() => {
+    if (!periodRange) return []
+
     const data: MonthlyData[] = []
 
-    // January to June 2026 (months 0-5)
-    for (let month = 0; month <= 5; month++) {
+    // Create new Date pointers to iterate from start to end month
+    const start = new Date(periodRange.start)
+    const end = new Date(periodRange.end)
+
+    // Iterate month by month
+    const current = new Date(start.getFullYear(), start.getMonth(), 1)
+
+    while (current <= end) {
+      const monthIdx = current.getMonth()
+      const year = current.getFullYear()
+
       let totalHours = 0
       let totalRevenue = 0
       let totalSessions = 0
@@ -50,7 +61,8 @@ export function WorkloadAnalytics() {
 
       trainings.forEach(training => {
         training.sessions.forEach(session => {
-          if (session.date.getMonth() === month && session.date.getFullYear() === 2026) {
+          const sDate = new Date(session.date)
+          if (sDate.getMonth() === monthIdx && sDate.getFullYear() === year) {
             const hours = parseInt(session.duration)
             totalHours += hours
             totalRevenue += hours * training.hourlyRate
@@ -66,16 +78,19 @@ export function WorkloadAnalytics() {
       })
 
       data.push({
-        month: monthNames[month].slice(0, 3),
-        monthIndex: month,
+        month: monthNames[monthIdx].slice(0, 3) + (year !== 2026 ? `'${year.toString().slice(2)}` : ''), // Add year if not 2026
+        monthIndex: monthIdx,
         hours: totalHours,
         revenue: totalRevenue,
         sessions: totalSessions,
       })
+
+      // Move to next month
+      current.setMonth(current.getMonth() + 1)
     }
 
     return data
-  }, [trainings])
+  }, [trainings, periodRange])
 
   const trainingBreakdown = useMemo(() => {
     return trainings.map(training => {
@@ -120,15 +135,43 @@ export function WorkloadAnalytics() {
   }, [monthlyData])
 
   const irsData = useMemo(() => {
+    // Helper to calculate revenue for specific months across all trainings
+    const calculateRevenueForMonths = (targetMonths: number[]) => {
+      let revenue = 0
+      // Need to track extras logic here too? YES.
+      // For simplification, let's reuse a similar logic:
+      targetMonths.forEach(month => {
+        const year = 2026 // Fixed to 2026 for now as per original logic context
+        const processedExtras = new Set<string>()
+
+        trainings.forEach(t => {
+          // 1. Session Income in this month
+          t.sessions.forEach(s => {
+            const d = new Date(s.date)
+            if (d.getMonth() === month && d.getFullYear() === year) {
+              revenue += parseInt(s.duration) * t.hourlyRate
+            }
+          })
+
+          // 2. Extras in this month
+          const hasActivity = t.sessions.some(s => {
+            const d = new Date(s.date)
+            return d.getMonth() === month && d.getFullYear() === year
+          })
+          if (hasActivity && t.extraValue && !processedExtras.has(t.id)) {
+            revenue += t.extraValue
+            processedExtras.add(t.id)
+          }
+        })
+      })
+      return revenue
+    }
+
     // Payment 1: Jan (0) + Feb (1) -> Paid in March
-    const period1Revenue = monthlyData
-      .filter(m => m.monthIndex === 0 || m.monthIndex === 1)
-      .reduce((acc, m) => acc + m.revenue, 0)
+    const period1Revenue = calculateRevenueForMonths([0, 1])
 
     // Payment 2: Mar (2) + Apr (3) + May (4) -> Paid in June
-    const period2Revenue = monthlyData
-      .filter(m => m.monthIndex >= 2 && m.monthIndex <= 4)
-      .reduce((acc, m) => acc + m.revenue, 0)
+    const period2Revenue = calculateRevenueForMonths([2, 3, 4])
 
     return {
       period1: {
@@ -140,7 +183,7 @@ export function WorkloadAnalytics() {
         tax: period2Revenue * (taxRate / 100)
       }
     }
-  }, [monthlyData, taxRate])
+  }, [trainings, taxRate])
 
   // Define colors for charts (computed in JS, not CSS variables)
   const chartColors = {
@@ -152,9 +195,9 @@ export function WorkloadAnalytics() {
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* IRS Simulation Card */}
-        <Card className="bg-card border-border md:col-span-2 lg:col-span-4 bg-gradient-to-r from-primary/5 to-transparent">
+        <Card className="bg-card border-border md:col-span-2 bg-gradient-to-r from-primary/5 to-transparent">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-foreground flex items-center gap-2">
@@ -175,29 +218,33 @@ export function WorkloadAnalytics() {
             <CardDescription>Estimativa de valores a pagar em Março (Jan+Fev) e Junho (Mar+Abr+Mai)</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-2">
+            <div className="grid grid-cols-1 gap-4 mt-2">
               <div className="flex flex-col gap-1">
-                <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Pagamento em Março</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Pagamento em Março</span>
+                  <span className="text-xs text-muted-foreground mt-1">Janeiro e Fevereiro</span>
+                </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-3xl font-bold text-foreground">{irsData.period1.tax.toLocaleString('pt-PT', { maximumFractionDigits: 0 })}€</span>
-                  <span className="text-sm text-muted-foreground">de {irsData.period1.revenue.toLocaleString('pt-PT', { maximumFractionDigits: 0 })}€ rendimento</span>
+                  <span className="text-sm text-muted-foreground">de {irsData.period1.revenue.toLocaleString('pt-PT', { maximumFractionDigits: 0 })}€ imposto base</span>
                 </div>
                 <div className="h-2 w-full bg-secondary rounded-full mt-2 overflow-hidden">
                   <div className="h-full bg-primary/70" style={{ width: '100%' }}></div>
                 </div>
-                <span className="text-xs text-muted-foreground mt-1">Corresponde a Janeiro e Fevereiro</span>
               </div>
 
               <div className="flex flex-col gap-1">
-                <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Pagamento em Junho</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Pagamento em Junho</span>
+                  <span className="text-xs text-muted-foreground mt-1">Março, Abril e Maio</span>
+                </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-3xl font-bold text-foreground">{irsData.period2.tax.toLocaleString('pt-PT', { maximumFractionDigits: 0 })}€</span>
-                  <span className="text-sm text-muted-foreground">de {irsData.period2.revenue.toLocaleString('pt-PT', { maximumFractionDigits: 0 })}€ rendimento</span>
+                  <span className="text-sm text-muted-foreground">de {irsData.period2.revenue.toLocaleString('pt-PT', { maximumFractionDigits: 0 })}€ imposto base</span>
                 </div>
                 <div className="h-2 w-full bg-secondary rounded-full mt-2 overflow-hidden">
                   <div className="h-full bg-primary/70" style={{ width: '100%' }}></div>
                 </div>
-                <span className="text-xs text-muted-foreground mt-1">Corresponde a Março, Abril e Maio</span>
               </div>
             </div>
           </CardContent>
@@ -212,7 +259,7 @@ export function WorkloadAnalytics() {
               <div>
                 <p className="text-sm text-muted-foreground">Total Horas</p>
                 <p className="text-2xl font-bold text-foreground">{totals.totalHours}h</p>
-                <p className="text-xs text-muted-foreground">Jan - Jun 2026</p>
+                <p className="text-xs text-muted-foreground">Período Selecionado</p>
               </div>
             </div>
           </CardContent>
@@ -227,7 +274,7 @@ export function WorkloadAnalytics() {
               <div>
                 <p className="text-sm text-muted-foreground">Rendimento Total</p>
                 <p className="text-2xl font-bold text-foreground">{totals.totalRevenue.toLocaleString('pt-PT')}€</p>
-                <p className="text-xs text-muted-foreground">Jan - Jun 2026</p>
+                <p className="text-xs text-muted-foreground">Período Selecionado</p>
               </div>
             </div>
           </CardContent>
@@ -265,12 +312,12 @@ export function WorkloadAnalytics() {
       </div>
 
       {/* Main Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         {/* Workload Chart */}
         <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="text-foreground">Carga de Trabalho Mensal</CardTitle>
-            <CardDescription>Horas de formação por mês (Jan - Jun 2026)</CardDescription>
+            <CardDescription>Horas de formação por mês</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer
@@ -300,7 +347,7 @@ export function WorkloadAnalytics() {
         <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="text-foreground">Rendimento Mensal</CardTitle>
-            <CardDescription>Valor a receber por mês (Jan - Jun 2026)</CardDescription>
+            <CardDescription>Valor a receber por mês</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer
@@ -324,121 +371,6 @@ export function WorkloadAnalytics() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Critical Periods Analysis */}
-      <Card className="bg-card border-border">
-        <CardHeader>
-          <CardTitle className="text-foreground flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-amber-500" />
-            Análise de Períodos Críticos
-          </CardTitle>
-          <CardDescription>Identificação dos meses com maior esforço e rendimento</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {monthlyData.map((month) => {
-              const isHighWorkload = month.hours >= totals.avgHoursPerMonth * 1.2
-              const isLowWorkload = month.hours <= totals.avgHoursPerMonth * 0.5
-              const isPeakRevenue = month.revenue === Math.max(...monthlyData.map(m => m.revenue))
-
-              return (
-                <div
-                  key={month.month}
-                  className={cn(
-                    "p-4 rounded-lg border transition-all",
-                    isHighWorkload ? "border-rose-500/50 bg-rose-500/5" :
-                      isLowWorkload ? "border-amber-500/50 bg-amber-500/5" :
-                        "border-border bg-secondary/30"
-                  )}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold text-foreground">{monthNames[month.monthIndex]}</h3>
-                    {isHighWorkload && (
-                      <span className="text-xs px-2 py-1 rounded-full bg-rose-500/20 text-rose-400">
-                        Alta Carga
-                      </span>
-                    )}
-                    {isPeakRevenue && (
-                      <span className="text-xs px-2 py-1 rounded-full bg-blue-500/20 text-blue-400">
-                        Maior Rend.
-                      </span>
-                    )}
-                    {isLowWorkload && (
-                      <span className="text-xs px-2 py-1 rounded-full bg-amber-500/20 text-amber-400">
-                        Baixa Carga
-                      </span>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Horas:</span>
-                      <span className="font-medium text-foreground">{month.hours}h</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Sessões:</span>
-                      <span className="font-medium text-foreground">{month.sessions}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Rendimento:</span>
-                      <span className="font-medium text-foreground">{month.revenue.toLocaleString('pt-PT')}€</span>
-                    </div>
-                  </div>
-                  {/* Progress bar for workload */}
-                  <div className="mt-3">
-                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                      <div
-                        className={cn(
-                          "h-full rounded-full transition-all",
-                          isHighWorkload ? "bg-rose-500" :
-                            isLowWorkload ? "bg-amber-500" : "bg-primary"
-                        )}
-                        style={{ width: `${Math.min((month.hours / totals.peakMonth.hours) * 100, 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Revenue by Training */}
-      <Card className="bg-card border-border">
-        <CardHeader>
-          <CardTitle className="text-foreground">Rendimento por Formação</CardTitle>
-          <CardDescription>Distribuição do rendimento até Junho 2026</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {trainingBreakdown.map((training, index) => (
-              <div key={index} className="flex items-center gap-4">
-                <div className={cn("w-3 h-3 rounded-full shrink-0", training.color)} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-medium text-foreground truncate" title={training.fullName}>
-                      {training.name}
-                    </p>
-                    <p className="text-sm font-bold text-foreground ml-2">
-                      {training.revenue.toLocaleString('pt-PT')}€
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                    <span>{training.hours}h</span>
-                    <span>{training.hourlyRate}€/h</span>
-                  </div>
-                  <div className="mt-1 h-1.5 bg-secondary rounded-full overflow-hidden">
-                    <div
-                      className={cn("h-full rounded-full", training.color)}
-                      style={{ width: `${(training.revenue / trainingBreakdown[0].revenue) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 }

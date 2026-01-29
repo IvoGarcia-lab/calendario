@@ -6,6 +6,13 @@ export interface TrainingSession {
   trainingId: string
 }
 
+export interface FinancialAdjustment {
+  id: string
+  description: string
+  value: number // Can be positive or negative
+  date: Date
+}
+
 export interface Training {
   id: string
   name: string
