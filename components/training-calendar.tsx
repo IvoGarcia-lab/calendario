@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { ChevronLeft, ChevronRight, Calendar, Clock, User, Euro, BarChart3, CalendarDays, MoreVertical, Pencil, Trash2, CalendarClock, Plus, ChevronDown, CheckCircle2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, Calendar, Clock, User, Euro, BarChart3, CalendarDays, MoreVertical, Pencil, Trash2, CalendarClock, Plus, ChevronDown, CheckCircle2, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { monthNames, dayNames, type Training, type TrainingSession } from "@/lib/training-data"
@@ -68,10 +68,18 @@ export function TrainingCalendar() {
     customStart, setCustomStart,
     customEnd, setCustomEnd,
     viewedDate, setViewedDate,
-    periodRange
+    periodRange,
+    logout
   } = useTraining()
 
-  // const [currentDate, setCurrentDate] = useState(new Date(2026, 1, 1)) // MOVED TO CONTEXT as viewedDate
+  const [currentDate, setCurrentDate] = useState(new Date())
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+
+  // Ensure we start with a valid date (Feb 2026 based on data)
+  useEffect(() => {
+    setCurrentDate(new Date(2026, 1, 1)) // February 1, 2026
+  }, [])
+
   const [selectedTrainings, setSelectedTrainings] = useState<string[]>([])
   const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null)
 

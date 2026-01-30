@@ -74,8 +74,8 @@ export function TrainingProvider({ children }: { children: React.ReactNode }) {
             setIsAuthenticated(true)
         }
 
-        // Data check
-        const savedData = localStorage.getItem("training-data-v1")
+        // Data check - BUMPED TO V2 to fix strict caching issues
+        const savedData = localStorage.getItem("training-data-v2")
         const savedAdjustments = localStorage.getItem("training-adjustments-v1")
         const savedTax = localStorage.getItem("training-tax-rate-v1")
 
@@ -129,7 +129,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }) {
     // Save to localStorage on change
     useEffect(() => {
         if (isInitialized) {
-            localStorage.setItem("training-data-v1", JSON.stringify(trainings))
+            localStorage.setItem("training-data-v2", JSON.stringify(trainings))
             localStorage.setItem("training-adjustments-v1", JSON.stringify(adjustments))
             localStorage.setItem("training-tax-rate-v1", taxRetentionRate.toString())
             localStorage.setItem("training-analysis-v1", JSON.stringify({
@@ -139,6 +139,12 @@ export function TrainingProvider({ children }: { children: React.ReactNode }) {
             }))
         }
     }, [trainings, adjustments, taxRetentionRate, analysisMode, customStart, customEnd, isInitialized])
+
+    const logout = () => {
+        setIsAuthenticated(false)
+        localStorage.removeItem("calendario-ivo-auth")
+        // Optional: Reset data on logout? For now, keep data to avoid data loss, just auth reset.
+    }
 
     const login = (u: string, p: string) => {
         // Tolerant check: trim whitespace and allow case-insensitive username
@@ -150,10 +156,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }) {
         return false
     }
 
-    const logout = () => {
-        setIsAuthenticated(false)
-        localStorage.removeItem("calendario-ivo-auth")
-    }
+
 
     const addTraining = (training: Training) => {
         setTrainings(prev => [...prev, training])
