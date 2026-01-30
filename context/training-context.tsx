@@ -27,6 +27,8 @@ interface TrainingContextType {
     addSession: (trainingId: string, session: TrainingSession) => void
     updateSession: (trainingId: string, sessionId: string, updates: Partial<TrainingSession>) => void
     deleteSession: (trainingId: string, sessionId: string) => void
+    deleteTraining: (id: string) => void
+    validateSession: (trainingId: string, sessionId: string, validated: boolean) => void
     addAdjustment: (adjustment: FinancialAdjustment) => void
     deleteAdjustment: (id: string) => void
     setTaxRetentionRate: (rate: number) => void
@@ -192,6 +194,22 @@ export function TrainingProvider({ children }: { children: React.ReactNode }) {
         }))
     }
 
+    const deleteTraining = (id: string) => {
+        setTrainings(prev => prev.filter(t => t.id !== id))
+    }
+
+    const validateSession = (trainingId: string, sessionId: string, validated: boolean) => {
+        setTrainings(prev => prev.map(t => {
+            if (t.id !== trainingId) return t
+            return {
+                ...t,
+                sessions: t.sessions.map(s =>
+                    s.id === sessionId ? { ...s, validated } : s
+                )
+            }
+        }))
+    }
+
     const addAdjustment = (adjustment: FinancialAdjustment) => {
         setAdjustments(prev => [...prev, adjustment])
     }
@@ -236,6 +254,8 @@ export function TrainingProvider({ children }: { children: React.ReactNode }) {
             addSession,
             updateSession,
             deleteSession,
+            deleteTraining,
+            validateSession,
             addAdjustment,
             deleteAdjustment,
             setTaxRetentionRate,

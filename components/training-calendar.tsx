@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { ChevronLeft, ChevronRight, Calendar, Clock, User, Euro, BarChart3, CalendarDays, MoreVertical, Pencil, Trash2, CalendarClock, Plus, ChevronDown } from "lucide-react"
+import { ChevronLeft, ChevronRight, Calendar, Clock, User, Euro, BarChart3, CalendarDays, MoreVertical, Pencil, Trash2, CalendarClock, Plus, ChevronDown, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { monthNames, dayNames, type Training, type TrainingSession } from "@/lib/training-data"
@@ -57,12 +57,13 @@ import { ManageExtrasDialog } from "./manage-extras-dialog"
 export function TrainingCalendar() {
   const {
     trainings,
-    adjustments, // New context
-    taxRetentionRate, // New context
+    adjustments,
+    taxRetentionRate,
     addTraining,
     updateSession,
     deleteSession,
-    // Context State
+    deleteTraining,
+    validateSession,
     analysisMode, setAnalysisMode,
     customStart, setCustomStart,
     customEnd, setCustomEnd,
@@ -330,32 +331,91 @@ export function TrainingCalendar() {
 
               {isTrainingsListOpen && (
                 <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                  {trainings.map(training => (
-                    <button
-                      key={training.id}
-                      onClick={() => toggleTraining(training.id)}
-                      className={cn(
-                        "w-full flex items-center gap-3 p-2 rounded-md transition-all text-left",
-                        selectedTrainings.includes(training.id)
-                          ? "bg-secondary"
-                          : "opacity-40 hover:opacity-60"
-                      )}
-                    >
-                      <div className={cn("w-3 h-3 rounded-full shrink-0", training.color)} />
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">
-                          {training.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {training.instructor} • {training.totalSessions} aulas • {training.hourlyRate}€/h
-                        </p>
+                  {trainings.map(training => {
+                    const validatedCount = training.sessions.filter(s => s.validated).length
+                    const totalCount = training.sessions.length
+                    return (
+                      <div
+                        key={training.id}
+                        className={cn(
+                          "w-full flex items-center gap-3 p-2 rounded-md transition-all group",
+                          selectedTrainings.includes(training.id)
+                            ? "bg-secondary"
+                            : "opacity-40 hover:opacity-60"
+                        )}
+                      >
+                        <button
+                          onClick={() => toggleTraining(training.id)}
+                          className="flex items-center gap-3 flex-1 text-left"
+                        >
+                          <div className={cn("w-3 h-3 rounded-full shrink-0", training.color)} />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-foreground truncate">
+                              {training.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {training.instructor} • {validatedCount}/{totalCount} validadas
+                            </p>
+                          </div>
+                        </button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (confirm(`Apagar formação "${training.name}"? Esta ação irá remover todas as ${totalCount} sessões.`)) {
+                              deleteTraining(training.id)
+                            }
+                          }}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
                       </div>
-                    </button>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
 
+            {/* Validated Sessions Panel */}
+            {(() => {
+              const allSessions = trainings.flatMap(t => t.sessions)
+              const validatedSessions = allSessions.filter(s => s.validated)
+              const pastSessions = allSessions.filter(s => new Date(s.date) < new Date())
+              const percentage = pastSessions.length > 0 ? Math.round((validatedSessions.length / pastSessions.length) * 100) : 0
+
+              return (
+                <div className="bg-card rounded-lg border border-border p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                      Sessões Validadas
+                    </h2>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-3xl font-bold text-foreground">{validatedSessions.length}</span>
+                      <span className="text-sm text-muted-foreground">/ {pastSessions.length} decorridas</span>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-500 transition-all duration-500 ease-out"
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>{percentage}% validadas</span>
+                      <span>{pastSessions.length - validatedSessions.length} por validar</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Extras Breakdown */}
             <div className="bg-card rounded-lg border border-border p-4 relative group">
@@ -594,21 +654,40 @@ export function TrainingCalendar() {
                     </div>
 
                     <div className="mt-1 space-y-1">
-                      {day.sessions.slice(0, 3).map((session, sessionIndex) => (
-                        <div
-                          key={sessionIndex}
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, session.id, session.trainingId)}
-                          onClick={(e) => e.stopPropagation()} // Prevent selecting day when clicking session
-                          className={cn(
-                            "text-xs px-1.5 py-0.5 rounded truncate text-white shadow-sm cursor-grab active:cursor-grabbing hover:brightness-110",
-                            session.training.color
-                          )}
-                        >
-                          <span className="hidden md:inline">{session.time.split(" - ")[0]}</span>
-                          <span className="md:hidden">{session.training.name.slice(0, 8)}</span>
-                        </div>
-                      ))}
+                      {day.sessions.slice(0, 3).map((session, sessionIndex) => {
+                        const isPast = new Date(session.date) < new Date()
+                        return (
+                          <div
+                            key={sessionIndex}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, session.id, session.trainingId)}
+                            onClick={(e) => e.stopPropagation()} // Prevent selecting day when clicking session
+                            onDoubleClick={(e) => {
+                              e.stopPropagation()
+                              validateSession(session.trainingId, session.id, !session.validated)
+                            }}
+                            title={session.validated ? "Duplo-clique para remover validação" : "Duplo-clique para validar"}
+                            className={cn(
+                              "text-xs px-1.5 py-0.5 rounded truncate text-white shadow-sm cursor-grab active:cursor-grabbing transition-all duration-300 flex items-center gap-1",
+                              session.training.color,
+                              // Default interaction
+                              !session.validated && "hover:brightness-110 hover:translate-y-[-1px] opacity-80 hover:opacity-100",
+                              // Validated State - NEON GLOW & SELF ILLUMINATION
+                              session.validated && [
+                                "ring-[2px] ring-white ring-offset-[2px] ring-offset-emerald-500", // Sharp border definition
+                                "shadow-[0_0_20px_rgba(16,185,129,0.8),0_0_4px_rgba(255,255,255,0.9)]", // Intense double glow
+                                "brightness-125 saturate-150", // Self-illumination effect
+                                "z-20 scale-105", // Pop out physical
+                                "font-bold tracking-wide"
+                              ]
+                            )}
+                          >
+                            {session.validated && <CheckCircle2 className="w-3.5 h-3.5 shrink-0 fill-emerald-100 text-emerald-600 animate-in zoom-in duration-300" />}
+                            <span className="hidden md:inline truncate drop-shadow-md">{session.time.split(" - ")[0]}</span>
+                            <span className="md:hidden truncate drop-shadow-md">{session.training.name.slice(0, 8)}</span>
+                          </div>
+                        )
+                      })}
                       {day.sessions.length > 3 && (
                         <div className="text-xs text-muted-foreground px-1 font-medium pointer-events-none">
                           +{day.sessions.length - 3} aulas
@@ -637,12 +716,25 @@ export function TrainingCalendar() {
                   </div>
                 ) : (
                   (selectedDay ? selectedDay.sessions : allSessionsForMonth).map((session, index) => (
-                    <div key={index} className="group flex items-center gap-4 p-4 hover:bg-secondary/30 transition-colors">
+                    <div key={index} className={cn(
+                      "group flex items-center gap-4 p-4 hover:bg-secondary/30 transition-colors",
+                      session.validated && "bg-emerald-500/5 border-l-2 border-emerald-500"
+                    )}>
                       <div className={cn("w-1 h-12 rounded-full shrink-0", session.training.color)} />
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-foreground truncate">
-                          {session.training.name}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-foreground truncate">
+                            {session.training.name}
+                          </p>
+                          {session.validated && (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                          )}
+                          {!session.validated && new Date(session.date) < new Date() && (
+                            <span className="text-[10px] px-1.5 py-0.5 bg-amber-500/10 text-amber-600 rounded font-medium">
+                              Por validar
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <User className="w-3 h-3" />
@@ -667,6 +759,24 @@ export function TrainingCalendar() {
                         <p className="text-sm text-muted-foreground">{session.time}</p>
 
                         <div className="flex justify-end gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {/* Validate Button - always enabled */}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={cn(
+                              "h-6 w-6",
+                              session.validated
+                                ? "text-emerald-500 hover:text-emerald-600"
+                                : "text-muted-foreground hover:text-emerald-500"
+                            )}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              validateSession(session.trainingId, session.id, !session.validated)
+                            }}
+                            title={session.validated ? "Remover validação" : "Validar sessão"}
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"

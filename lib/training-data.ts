@@ -4,6 +4,7 @@ export interface TrainingSession {
   time: string
   duration: string
   trainingId: string
+  validated?: boolean
 }
 
 export interface FinancialAdjustment {
