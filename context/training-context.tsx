@@ -95,7 +95,18 @@ export function TrainingProvider({ children }: { children: React.ReactNode }) {
                         dayDate: s.dayDate ? new Date(s.dayDate) : new Date(s.date)
                     }))
                 }))
-                setTrainings(hydrated)
+
+                // AUTO-SYNC: Check for new trainings in source that don't exist in localStorage
+                const savedIds = new Set(hydrated.map((t: any) => t.id))
+                const newTrainings = initialData.filter(t => !savedIds.has(t.id))
+
+                if (newTrainings.length > 0) {
+                    console.log(`[Auto-Sync] Found ${newTrainings.length} new training(s):`, newTrainings.map(t => t.name))
+                    // Merge new trainings with existing data
+                    setTrainings([...hydrated, ...newTrainings])
+                } else {
+                    setTrainings(hydrated)
+                }
             } catch (e) {
                 console.error("Failed to parse saved trainings", e)
             }
