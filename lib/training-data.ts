@@ -307,6 +307,35 @@ const rawTrainings: (Omit<Training, "sessions"> & { sessions: Omit<TrainingSessi
       { date: d(12, 17), time: "18:30 - 20:30", duration: "2h", trainingId: "viz-ia-arq-4" },
     ]
   },
+  // Luminotecnia - 15 sessões, Sextas 14h-17h, início 13 Fev, pausa 20 Fev
+  {
+    id: "luminotecnia",
+    name: "Luminotecnia",
+    instructor: "Luminotecnia",
+    totalSessions: 15,
+    schedule: "Sextas 14h às 17h",
+    color: "bg-yellow-500",
+    hourlyRate: 35,
+    sessions: [
+      // 15 sessions, Fridays 14h-17h, starting Feb 13, skipping Feb 20
+      { date: d(2, 13), time: "14:00 - 17:00", duration: "3h", trainingId: "luminotecnia" },
+      // Skip Feb 20
+      { date: d(2, 27), time: "14:00 - 17:00", duration: "3h", trainingId: "luminotecnia" },
+      { date: d(3, 6), time: "14:00 - 17:00", duration: "3h", trainingId: "luminotecnia" },
+      { date: d(3, 13), time: "14:00 - 17:00", duration: "3h", trainingId: "luminotecnia" },
+      { date: d(3, 20), time: "14:00 - 17:00", duration: "3h", trainingId: "luminotecnia" },
+      { date: d(3, 27), time: "14:00 - 17:00", duration: "3h", trainingId: "luminotecnia" },
+      { date: d(4, 3), time: "14:00 - 17:00", duration: "3h", trainingId: "luminotecnia" },
+      { date: d(4, 10), time: "14:00 - 17:00", duration: "3h", trainingId: "luminotecnia" },
+      { date: d(4, 17), time: "14:00 - 17:00", duration: "3h", trainingId: "luminotecnia" },
+      { date: d(4, 24), time: "14:00 - 17:00", duration: "3h", trainingId: "luminotecnia" },
+      { date: d(5, 1), time: "14:00 - 17:00", duration: "3h", trainingId: "luminotecnia" },
+      { date: d(5, 8), time: "14:00 - 17:00", duration: "3h", trainingId: "luminotecnia" },
+      { date: d(5, 15), time: "14:00 - 17:00", duration: "3h", trainingId: "luminotecnia" },
+      { date: d(5, 22), time: "14:00 - 17:00", duration: "3h", trainingId: "luminotecnia" },
+      { date: d(5, 29), time: "14:00 - 17:00", duration: "3h", trainingId: "luminotecnia" },
+    ]
+  },
 ]
 
 // Add IDs to sessions programmatically
